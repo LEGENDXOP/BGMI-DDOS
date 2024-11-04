@@ -3,8 +3,8 @@ import subprocess
 import datetime
 import os
 
-api_id = 1234567
-api_hash = 'abcdef1234567890abcdef1234567890'
+api_id = 1621727
+api_hash = '31350903c528876f79527398c09660ce'
 bot_token = '7850408397:AAEPMQjgYGJo7zg5r8CFP8QnwQ_LMPSjQko'
 client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
 
